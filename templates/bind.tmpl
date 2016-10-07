@@ -1,0 +1,32 @@
+{{ $domain := "example.com" }}
+$ttl 38400
+{{ $domain }}.	IN	SOA	somename. contact.{{ $domain }}. (
+				{{ zoneSerial }} ; serial
+				10800 ; refresh
+				3600 ; retry
+				60480 ; expire
+				38400 ; nxdomain ttl
+)
+
+{{ $domain }}.	IN	NS	somename.
+.		IN	NS	somename.
+
+{{/* static rules applies here */}}
+resolver.{{ $domain }}.	IN	192.168.1.1
+server.{{ $domain }}.		IN	192.168.1.2
+
+{{/* Automatic rules are described here */}}
+{{ range $index, $value := . }}
+	{{- if $value.Env.VIRTUAL_HOST }}
+		{{- range $index, $element := split $value.Env.VIRTUAL_HOST "," }}
+			{{- range $idx, $hostname := split $element "." }}
+				{{- if eq $idx 0 }}
+					{{- if eq $value.Name $hostname | not }}
+						{{- $hostname }}.{{ $domain }}.	IN		CNAME		server
+					{{ end }}
+				{{ end }}
+			{{ end }}
+		{{ end }}
+	{{ end }}
+	{{- $value.Name }}.{{ $domain }}.	IN	CNAME		server
+{{ end }}

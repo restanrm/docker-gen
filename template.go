@@ -18,7 +18,10 @@ import (
 	"strings"
 	"syscall"
 	"text/template"
+	"time"
 )
+
+var zoneCounter string
 
 func exists(path string) (bool, error) {
 	_, err := os.Stat(path)
@@ -411,6 +414,36 @@ func when(condition bool, trueValue, falseValue interface{}) interface{} {
 	}
 }
 
+// zoneSerial returns a valid serial number that change each time a new host is
+// started. !! no more than 100 start each day. don't know what will happen if
+// you do more than that. It has not been tested.
+//
+// XXX : It's possible to just use a simple counter to increment at each time
+// if used in a docker container where there is no cache (this assumption need
+// validation)
+func zoneSerial() string {
+	now := time.Now().Format("2006010200")
+	if zoneCounter == "" || now > zoneCounter {
+		zoneCounter = now
+		return now
+	}
+	incZoneCounter()
+	return zoneCounter
+}
+
+func incZoneCounter() {
+	rx := regexp.MustCompile("([0-9]{8})([0-9]{0,2})")
+	matches := rx.FindStringSubmatch(zoneCounter)
+	if len(matches) < 3 {
+		return
+	}
+	a, err := strconv.Atoi(zoneCounter)
+	if err != nil {
+		return
+	}
+	zoneCounter = matches[1] + fmt.Sprintf("%02v", strconv.Itoa(a+1))
+}
+
 func newTemplate(name string) *template.Template {
 	tmpl := template.New(name).Funcs(template.FuncMap{
 		"closest":                arrayClosest,
@@ -449,6 +482,7 @@ func newTemplate(name string) *template.Template {
 		"whereLabelExists":       whereLabelExists,
 		"whereLabelDoesNotExist": whereLabelDoesNotExist,
 		"whereLabelValueMatches": whereLabelValueMatches,
+		"zoneSerial":             zoneSerial,
 	})
 	return tmpl
 }
